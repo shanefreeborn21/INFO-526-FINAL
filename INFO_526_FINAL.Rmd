@@ -1,0 +1,91 @@
+---
+title: "COVID-19 Vaccination Availability by Socio-Economic Status"
+author: "Shane Freeborn - INFO 526"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+##Data Sets
+
+```{r}
+library(usmap)
+library(ggplot2)
+library(tidyverse)
+library(ggthemes)
+
+county_vax <- read.csv("data/COVID-19_Vaccinations_County.csv")
+cases_by_county_21 <- read.csv("data/us-counties-2021.csv")
+cases_by_county_22 <- read.csv("data/us-counties-2022.csv")
+county_codes <- read.csv("data/county_fips.csv")
+income <- read.csv("data/county_income.csv")
+```
+
+The data was acquired from multiple sources. The original intent was to look at the accessibility of COVID-19 testing sites based on location and socioeconomic status to determine if there is a relationship between socio-economic status of a region and the number of testing sites. However, data on these testing sites is not easily available or reliable, so I decided to look at the availability and accessibility of COVID-19 vaccines. The vaccination data comes from the CDC. The cases by county come from the New York Times live COVID-19 data tracking. A supplementary data set was pulled that contains unique county codes that identify each county. Finally, income data, which determines the socio-economic status of a county, comes from the Census Survey. All visuals were created with older data, but new data was pulled closer to the submission of this report. 
+
+
+##Data Exploration
+```{r}
+total_cases_by_state <- cases_by_county_21 %>%
+  
+  summarise(total_cases = sum(cases))
+
+colnames(county_vax)[4] <- "County"
+vax_by_county <- merge(x = county_vax, y = income, by= "County")
+
+vax_by_county <- vax_by_county %>%
+  group_by(County, State, Estimate_Households_Median_income) %>%
+  summarise(total_vax = sum(Administered_1dose))
+
+vax_by_county$incomerange <- cut(as.numeric(vax_by_county$Estimate_Households_Median_income), c(0, 25000, 50000, 75000, 100000), labels = c("$0-25k", "$26-50k", "$51-75k", "$76-100k+"))
+  
+
+vax_by_county <- na.omit(vax_by_county)
+```
+
+##Visualizations
+
+First we want to see a broad view of COVID cases in 2021, by state to get an idea at which states were impacted most by the pandemic.
+```{r}
+plot_usmap(data = cases_by_county_21, values = "cases") +
+  scale_fill_colorblind() +
+  scale_fill_continuous(name = "Total COVID-19 Cases 2021", label = scales::comma) +
+  theme(legend.position = "right")
+
+```
+
+```{r}
+income %>%
+  group_by(State) %>%
+  summarise(avg_income = mean(as.numeric(Estimate_Households_Median_income))) %>%
+  ggplot(aes(y = avg_income,
+             x = reorder(State, -avg_income))) + 
+  geom_bar(stat = "identity", width = 0.4) +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  ggtitle("Average Income by State") +
+  xlab("State") +
+  ylab("Average Income by County") +
+  scale_y_discrete() +
+  scale_fill_colorblind() + 
+  scale_color_gradient()
+```
+
+```{r}
+random_sample_data <- vax_by_county[sample(nrow(vax_by_county), 20), ]
+random_sample_data %>%
+  ggplot(aes(x = County,
+             y = total_vax,
+             fill = incomerange)) + 
+  geom_col() +
+  xlab("County Name") + 
+  ylab("Income Range") +
+  ggtitle("Random Sample of County Income vs Vaccinations Administered") +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  scale_fill_colorblind()
+```
+
+##Conclusions
+
+We can see that there is not a strong relationship between income and vaccinations administered. The accessibility of these vaccinations may be impacted by factors such as income and ones ability to get to a vaccination site, however it is not the main factor that determines if someone can get a vaccination. Measures such as average distance to nearest vaccination clinic and how rural a city/county may make income a strong predictor, but it is not the only predictor of vaccination availability.
+
+
